@@ -58,7 +58,7 @@ HealthConnect AI leverages predictive analytics to identify patients at high ris
 ### Local Development
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/healthconnect-ai.git
+git clone https://github.com/nouhaila-elmorjani/healthconnect-ai.git
 cd healthconnect-ai
 
 # Install dependencies
