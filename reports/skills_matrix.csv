@@ -1,0 +1,6 @@
+Skill Category,Technologies Used,Project Application
+Data Analysis & Visualization,"Pandas, NumPy, Matplotlib, Seaborn","Exploratory data analysis, pattern identification, visualization"
+Machine Learning,"Scikit-learn, Random Forest, Logistic Regression, LightGBM","Model training, hyperparameter tuning, performance evaluation"
+Feature Engineering,"Feature selection, One-hot encoding, Interaction features",Created 34 predictive features from raw data
+Business Intelligence,"ROI analysis, Cost-benefit calculation, Strategic planning","Identified $291,960 annual savings opportunity"
+Project Management,"Jupyter notebooks, Documentation, Executive reporting",4-day structured project execution and documentation
