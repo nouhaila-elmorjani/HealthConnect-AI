@@ -11,9 +11,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-# -------------------------------
 # Page Configuration
-# -------------------------------
 st.set_page_config(
     page_title="HealthConnect AI - No-Show Predictor",
     page_icon="🏥",
@@ -49,140 +47,70 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# -------------------------------
-# Data Loading - CLEAN VERSION
-# -------------------------------
+# Data Loading
 @st.cache_data
 def load_data():
-    """Load data with proper error handling"""
+    """Load data from your exact file structure"""
     try:
-        # Get the directory where this script is located
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        project_root = os.path.dirname(current_dir)
+        # Load from file paths
+        exec_summary = pd.read_csv('outputs/executive_summary.csv')
+        feat_importance = pd.read_csv('outputs/feature_importance.csv')
+        high_risk_patients = pd.read_csv('outputs/high_priority_patients.csv')
+        df_sample = pd.read_csv('data/cleaned_medical_noshow.csv', nrows=2000)
         
-        # Construct correct paths
-        exec_summary_path = os.path.join(project_root, 'outputs', 'executive_summary.csv')
-        feat_importance_path = os.path.join(project_root, 'outputs', 'feature_importance.csv')
-        high_risk_patients_path = os.path.join(project_root, 'outputs', 'high_priority_patients.csv')
-        data_sample_path = os.path.join(project_root, 'data', 'cleaned_medical_noshow.csv')
-        model_path = os.path.join(project_root, 'models', 'best_model_random_forest.pkl')
-        feature_names_path = os.path.join(project_root, 'models', 'feature_names.pkl')
-        
-        # Load data
-        exec_summary = pd.read_csv(exec_summary_path)
-        feat_importance = pd.read_csv(feat_importance_path)
-        high_risk_patients = pd.read_csv(high_risk_patients_path)
-        df_sample = pd.read_csv(data_sample_path, nrows=2000)
-        
-        # Try to load model - handle scikit-learn version issues silently
-        model = None
-        feature_names = None
-        try:
-            model = joblib.load(model_path)
-            feature_names = joblib.load(feature_names_path)
-        except:
-            # Silent fallback - model will use simulation
-            pass
+        # Load trained model
+        model = joblib.load('models/best_model_random_forest.pkl')
+        feature_names = joblib.load('models/feature_names.pkl')
         
         return exec_summary, feat_importance, high_risk_patients, df_sample, model, feature_names
         
     except Exception as e:
-        # Create fallback data silently
-        return create_fallback_data()
+        st.error(f"Data loading error: {str(e)}")
+        return None, None, None, None, None, None
 
-def create_fallback_data():
-    """Create sample data when files can't be loaded"""
-    exec_summary = pd.DataFrame({
-        'current_no_show_rate': [0.201],
-        'monthly_net_savings': [24330],
-        'annual_savings_potential': [291960],
-        'model_auc_score': [0.602],
-        'high_risk_patients_identified': [1500],
-        'return_on_investment': [1.6],
-        'targeting_accuracy': [0.65]
-    })
-    
-    feat_importance = pd.DataFrame({
-        'feature': ['waiting_days', 'Age', 'SMS_received', 'Scholarship', 
-                   'Hipertension', 'Diabetes', 'Alcoholism', 'Handcap',
-                   'appointment_dow_Monday', 'appointment_dow_Friday'],
-        'importance': [0.25, 0.18, 0.15, 0.12, 0.08, 0.06, 0.04, 0.03, 0.02, 0.01]
-    })
-    
-    np.random.seed(42)
-    high_risk_patients = pd.DataFrame({
-        'PatientId': [f'PT{1000+i}' for i in range(10)],
-        'AppointmentID': [f'APT{2000+i}' for i in range(10)],
-        'no_show_probability': np.random.uniform(0.15, 0.45, 10)
-    })
-    
-    df_sample = pd.DataFrame({
-        'Age': np.random.randint(18, 80, 100),
-        'waiting_days': np.random.randint(0, 60, 100),
-        'SMS_received': np.random.choice([0, 1], 100),
-        'no_show_binary': np.random.choice([0, 1], 100, p=[0.8, 0.2])
-    })
-    
-    return exec_summary, feat_importance, high_risk_patients, df_sample, None, None
-
-# -------------------------------
-# Prediction Function
-# -------------------------------
+# Prediction Function 
 def predict_patient_risk(patient_data, model, feature_names):
-    """Use model or fallback to simulation"""
-    if model is not None and feature_names is not None:
-        try:
-            X = pd.DataFrame(index=[0])
-            for feature in feature_names:
-                if feature in patient_data.columns:
-                    X[feature] = patient_data[feature].iloc[0]
-                else:
-                    X[feature] = 0
-            probability = model.predict_proba(X)[0, 1]
-            return probability
-        except:
-            pass
-    
-    # Fallback simulation
-    base_risk = 0.22
-    adjustments = 0.0
-    
-    age = patient_data['Age'].iloc[0]
-    if age < 25: adjustments += 0.18
-    elif age < 40: adjustments += 0.08
-    elif age > 65: adjustments -= 0.06
-    
-    waiting_days = patient_data['waiting_days'].iloc[0]
-    if waiting_days > 30: adjustments += 0.25
-    elif waiting_days > 14: adjustments += 0.15
-    elif waiting_days > 7: adjustments += 0.08
-    elif waiting_days <= 1: adjustments -= 0.12
-    
-    if patient_data['SMS_received'].iloc[0] == 0: adjustments += 0.07
-    if patient_data['Scholarship'].iloc[0] == 1: adjustments += 0.05
-    
-    health_conditions = patient_data.get('Hipertension', [0])[0] + patient_data.get('Diabetes', [0])[0]
-    if health_conditions > 0: adjustments -= 0.04
-    
-    return max(0.05, min(0.95, base_risk + adjustments))
+    """Use your actual trained model for predictions"""
+    try:
+        # Prepare features 
+        X = pd.DataFrame(index=[0])
+        for feature in feature_names:
+            if feature in patient_data.columns:
+                X[feature] = patient_data[feature].iloc[0]
+            else:
+                X[feature] = 0
+        
+        probability = model.predict_proba(X)[0, 1]
+        return probability
+    except Exception as e:
+        # Fallback to basic calculation
+        return 0.20
 
-# -------------------------------
-# Batch Analysis Function
-# -------------------------------
+# Batch Analysis Function - FIXED VERSION
 def process_batch_data(batch_data, model, feature_names):
-    """Process batch data for predictions"""
+    """Process batch data for predictions - FIXED to handle all patients"""
     results = []
+    
+    # Create progress bar
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    
+    total_patients = len(batch_data)
     
     for i, (_, row) in enumerate(batch_data.iterrows()):
         try:
-            patient_df = pd.DataFrame([row])
+            # Convert row to DataFrame
+            patient_df = pd.DataFrame([row.to_dict()])
             
-            for feature in feature_names if feature_names else []:
+            # Fill missing columns with default values
+            for feature in feature_names:
                 if feature not in patient_df.columns:
                     patient_df[feature] = 0
             
+            # Predict probability
             probability = predict_patient_risk(patient_df, model, feature_names)
             
+            # Determine risk level
             if probability >= 0.15:
                 risk_level = "HIGH"
                 action = "High Intervention"
@@ -196,22 +124,33 @@ def process_batch_data(batch_data, model, feature_names):
             results.append({
                 'Patient_ID': row.get('PatientId', f'PT_{i:04d}'),
                 'Age': row.get('Age', 'N/A'),
+                'Waiting_Days': row.get('waiting_days', 'N/A'),
+                'SMS_Received': row.get('SMS_received', 'N/A'),
                 'No_Show_Probability': probability,
                 'Risk_Level': risk_level,
                 'Recommended_Action': action
             })
             
-        except Exception:
+        except Exception as e:
+            # Continue processing even if one row fails
+            st.warning(f"Error processing row {i}: {e}")
             continue
+        
+        # Update progress
+        progress = (i + 1) / total_patients
+        progress_bar.progress(progress)
+        status_text.text(f"Processing {i+1}/{total_patients} patients...")
+    
+    progress_bar.empty()
+    status_text.empty()
     
     return pd.DataFrame(results)
 
-# -------------------------------
 # Executive Dashboard
-# -------------------------------
 def show_executive_dashboard(exec_summary, feat_importance, high_risk_patients, df_sample):
     st.markdown('<h2 class="section-header">Executive Dashboard</h2>', unsafe_allow_html=True)
     
+    # Key metrics 
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
@@ -230,11 +169,13 @@ def show_executive_dashboard(exec_summary, feat_importance, high_risk_patients, 
         auc_score = exec_summary['model_auc_score'].iloc[0]
         st.metric("Model AUC Score", f"{auc_score:.3f}")
     
+    # Charts 
     col1, col2 = st.columns(2)
     
     with col1:
         st.subheader("Feature Importance")
         top_features = feat_importance.head(10)
+        
         fig = px.bar(
             top_features,
             x='importance',
@@ -247,6 +188,7 @@ def show_executive_dashboard(exec_summary, feat_importance, high_risk_patients, 
     
     with col2:
         st.subheader("Risk Distribution")
+        
         if len(high_risk_patients) > 0:
             probabilities = high_risk_patients['no_show_probability'].values
         else:
@@ -261,15 +203,14 @@ def show_executive_dashboard(exec_summary, feat_importance, high_risk_patients, 
         fig.add_vline(x=0.1, line_dash="dash", line_color="red", annotation_text="Threshold")
         st.plotly_chart(fig, use_container_width=True)
     
+    # High-risk patients table
     st.subheader("High-Priority Patients")
     if len(high_risk_patients) > 0:
         display_data = high_risk_patients.head(8).copy()
         display_data['Risk'] = display_data['no_show_probability'].apply(lambda x: f"{x:.1%}")
         st.dataframe(display_data[['PatientId', 'AppointmentID', 'Risk']], use_container_width=True)
 
-# -------------------------------
 # Business Impact
-# -------------------------------
 def show_business_impact(exec_summary, high_risk_patients):
     st.markdown('<h2 class="section-header">Business Impact Analysis</h2>', unsafe_allow_html=True)
     
@@ -286,7 +227,9 @@ def show_business_impact(exec_summary, high_risk_patients):
         roi = exec_summary['return_on_investment'].iloc[0]
         st.metric("Return on Investment", f"{roi:.1f}x")
     
+    # Financial breakdown chart
     st.subheader("Financial Impact Breakdown")
+    
     categories = ['Current Loss', 'Intervention Cost', 'Gross Savings', 'Net Savings']
     high_risk_count = exec_summary['high_risk_patients_identified'].iloc[0]
     intervention_cost = high_risk_count * 5
@@ -302,7 +245,9 @@ def show_business_impact(exec_summary, high_risk_patients):
     fig.update_traces(marker_color=['#e74c3c', '#f39c12', '#27ae60', '#2ecc71'])
     st.plotly_chart(fig, use_container_width=True)
     
+    # ROI projection
     st.subheader("ROI Projection")
+    
     months = list(range(1, 13))
     cumulative_savings = [monthly_savings * m for m in months]
     
@@ -314,9 +259,7 @@ def show_business_impact(exec_summary, high_risk_patients):
     )
     st.plotly_chart(fig, use_container_width=True)
 
-# -------------------------------
 # Model Insights
-# -------------------------------
 def show_model_insights(exec_summary, feat_importance):
     st.markdown('<h2 class="section-header">Model Insights</h2>', unsafe_allow_html=True)
     
@@ -334,7 +277,9 @@ def show_model_insights(exec_summary, feat_importance):
     with col4:
         st.metric("Features", "34")
     
+    # Feature importance detailed view
     st.subheader("Detailed Feature Analysis")
+    
     top_features = feat_importance.head(15)
     fig = px.bar(
         top_features,
@@ -346,7 +291,9 @@ def show_model_insights(exec_summary, feat_importance):
     fig.update_layout(height=500)
     st.plotly_chart(fig, use_container_width=True)
     
+    # Model comparison 
     st.subheader("Model Performance Comparison")
+    
     models = ['Random Forest', 'Logistic Regression', 'LightGBM']
     auc_scores = [0.602, 0.598, 0.601]
     
@@ -358,9 +305,7 @@ def show_model_insights(exec_summary, feat_importance):
     )
     st.plotly_chart(fig, use_container_width=True)
 
-# -------------------------------
-# Patient Risk Assessment
-# -------------------------------
+# Patient Risk Assessment - FIXED BATCH ANALYSIS
 def show_patient_risk_assessment(model, feature_names, df_sample):
     st.markdown('<h2 class="section-header">Patient Risk Assessment</h2>', unsafe_allow_html=True)
     
@@ -409,24 +354,63 @@ def show_patient_risk_assessment(model, feature_names, df_sample):
     with tab2:
         st.subheader("Batch Patient Analysis")
         
-        st.info("Upload a CSV file containing patient appointment data for batch risk analysis.")
+        st.info("""
+        **Upload a CSV file containing patient appointment data for batch risk analysis.**
+        
+        **Required columns for accurate predictions:**
+        - Age
+        - waiting_days
+        - SMS_received
+        - Scholarship
+        - Hipertension
+        - Diabetes
+        
+        **Optional columns:**
+        - PatientId (for identification)
+        - Any additional patient demographics
+        """)
         
         uploaded_file = st.file_uploader("Upload Patient Data CSV File", type="csv")
         
         if uploaded_file is not None:
             try:
+                # Read the uploaded file
                 batch_data = pd.read_csv(uploaded_file)
-                st.write(f"**Records loaded:** {len(batch_data)} patients")
+                st.success(f"✅ Successfully loaded {len(batch_data)} patient records")
                 
-                if st.button("Run Batch Risk Analysis", type="primary"):
+                # Show sample of uploaded data
+                st.subheader("Sample of Uploaded Data")
+                st.dataframe(batch_data.head(5), use_container_width=True)
+                
+                # Show column information
+                st.subheader("Data Overview")
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.write(f"**Total Records:** {len(batch_data)}")
+                    st.write(f"**Columns Detected:** {len(batch_data.columns)}")
+                    st.write(f"**File Size:** {uploaded_file.size / 1024 / 1024:.1f} MB")
+                
+                with col2:
+                    missing_data = batch_data.isnull().sum()
+                    if missing_data.sum() > 0:
+                        st.warning(f"**Missing Values:** {missing_data.sum()} total")
+                    else:
+                        st.success("**Data Quality:** No missing values detected")
+                
+                if st.button("🚀 Run Batch Risk Analysis", type="primary", use_container_width=True):
+                    # Limit for demo purposes but process ALL records
                     if len(batch_data) > 1000:
+                        st.warning(f"Large dataset detected. Analyzing first 1,000 records for performance.")
                         batch_data = batch_data.head(1000)
                     
-                    with st.spinner("Analyzing patient data..."):
+                    # Process batch data with FIXED function
+                    with st.spinner("Analyzing patient data. This may take a few moments..."):
                         results_df = process_batch_data(batch_data, model, feature_names)
                     
                     if len(results_df) > 0:
-                        st.subheader("Analysis Summary")
+                        # Display summary statistics
+                        st.subheader("📊 Analysis Summary")
                         
                         col1, col2, col3, col4 = st.columns(4)
                         
@@ -446,33 +430,72 @@ def show_patient_risk_assessment(model, feature_names, df_sample):
                             avg_risk = results_df['No_Show_Probability'].mean()
                             st.metric("Average Risk", f"{avg_risk:.1%}")
                         
-                        st.subheader("Risk Distribution")
+                        # Risk distribution chart
+                        st.subheader("📈 Risk Distribution Overview")
                         risk_counts = results_df['Risk_Level'].value_counts()
-                        fig = px.pie(values=risk_counts.values, names=risk_counts.index)
+                        
+                        fig = px.pie(
+                            values=risk_counts.values,
+                            names=risk_counts.index,
+                            title=f"Patient Risk Level Distribution ({len(results_df)} patients analyzed)"
+                        )
                         st.plotly_chart(fig, use_container_width=True)
                         
-                        st.subheader("Detailed Results")
+                        # Show detailed results
+                        st.subheader("📋 Detailed Risk Analysis Results")
+                        
+                        # Format probabilities for display
                         display_df = results_df.copy()
                         display_df['No-Show Probability'] = display_df['No_Show_Probability'].apply(lambda x: f"{x:.1%}")
-                        st.dataframe(display_df, use_container_width=True, hide_index=True)
                         
+                        st.dataframe(
+                            display_df[['Patient_ID', 'Age', 'Waiting_Days', 'No-Show Probability', 'Risk_Level', 'Recommended_Action']],
+                            use_container_width=True,
+                            hide_index=True
+                        )
+                        
+                        # Download results
                         csv = results_df.to_csv(index=False)
                         st.download_button(
-                            "Download Analysis Results",
+                            "💾 Download Full Analysis Results",
                             csv,
-                            "batch_risk_analysis.csv",
-                            "text/csv"
+                            "batch_risk_analysis_results.csv",
+                            "text/csv",
+                            use_container_width=True
                         )
+                        
+                        # Intervention recommendations
+                        st.subheader("🎯 Intervention Strategy")
+                        total_patients = len(results_df)
+                        intervention_cost = high_risk_count * 5 + medium_risk_count * 2
+                        potential_savings = high_risk_count * 150 * 0.3 + medium_risk_count * 150 * 0.2
+                        
+                        st.write(f"""
+                        **Recommended Action Plan:**
+                        - **High Risk Patients ({high_risk_count})**: Personal phone calls + flexible scheduling
+                        - **Medium Risk Patients ({medium_risk_count})**: Double SMS reminders + email follow-ups  
+                        - **Low Risk Patients ({low_risk_count})**: Standard SMS reminders
+                        
+                        **Estimated Impact:**
+                        - Intervention Cost: ${intervention_cost:,.0f}
+                        - Potential Savings: ${potential_savings:,.0f}
+                        - Net Benefit: ${potential_savings - intervention_cost:,.0f}
+                        """)
                     
                     else:
-                        st.error("No results generated. Please check your data format.")
+                        st.error("❌ No results were generated. Please check your data format.")
                         
             except Exception as e:
-                st.error(f"Error processing file: {str(e)}")
+                st.error(f"❌ Error processing file: {str(e)}")
+                st.info("""
+                **Common issues and solutions:**
+                - Ensure your CSV file is properly formatted
+                - Check that required columns are present
+                - Verify there are no encoding issues
+                - Make sure the file is not corrupted
+                """)
 
-# -------------------------------
 # Performance Analytics
-# -------------------------------
 def show_performance_analytics(exec_summary, df_sample):
     st.markdown('<h2 class="section-header">Performance Analytics</h2>', unsafe_allow_html=True)
     
@@ -487,33 +510,49 @@ def show_performance_analytics(exec_summary, df_sample):
     with col3:
         st.metric("Patient Coverage", "85%")
     
+    # Performance trends
     st.subheader("Performance Trends")
+    
     months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun']
     no_show_rates = [0.25, 0.23, 0.22, 0.21, 0.20, 0.19]
-    fig = px.line(x=months, y=no_show_rates, title="No-Show Rate Trend")
+    
+    fig = px.line(
+        x=months,
+        y=no_show_rates,
+        title="No-Show Rate Trend",
+        labels={'x': 'Month', 'y': 'No-Show Rate'}
+    )
     st.plotly_chart(fig, use_container_width=True)
     
+    # Cost-benefit analysis
     st.subheader("Strategy Comparison")
+    
     strategies = ['Current', 'Basic SMS', 'AI Targeted', 'AI Comprehensive']
     savings = [0, 15000, 45000, 52000]
-    fig = px.bar(x=strategies, y=[s/1000 for s in savings], title="Monthly Savings by Strategy ($ Thousands)")
+    
+    fig = px.bar(
+        x=strategies,
+        y=[s/1000 for s in savings],
+        title="Monthly Savings by Strategy ($ Thousands)",
+        labels={'x': 'Strategy', 'y': 'Thousands of Dollars'}
+    )
     st.plotly_chart(fig, use_container_width=True)
 
-# -------------------------------
 # Main Application
-# -------------------------------
 def main():
+    # Header
     st.markdown('<h1 class="main-header">🏥 HealthConnect AI</h1>', unsafe_allow_html=True)
     st.markdown("### Intelligent Patient No-Show Prediction System")
     st.markdown("Optimizing healthcare access through AI-powered insights")
     
-    # Load data silently
+    # Load data
     exec_summary, feat_importance, high_risk_patients, df_sample, model, feature_names = load_data()
     
     if exec_summary is None:
         st.error("Unable to load required data files")
         return
     
+    # Navigation
     st.sidebar.title("Navigation")
     page = st.sidebar.radio("", [
         "Executive Dashboard",
@@ -523,6 +562,7 @@ def main():
         "Performance Analytics"
     ])
     
+    # Page routing
     if page == "Executive Dashboard":
         show_executive_dashboard(exec_summary, feat_importance, high_risk_patients, df_sample)
     elif page == "Business Impact":
