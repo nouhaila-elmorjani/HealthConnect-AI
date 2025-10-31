@@ -129,16 +129,28 @@ def predict_patient_risk(patient_data, model, feature_names):
 def process_batch_data(batch_data, model, feature_names):
     results = []
     
+    # Add progress tracking
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    
+    total_patients = len(batch_data)
+    
     for i, (_, row) in enumerate(batch_data.iterrows()):
         try:
-            patient_df = pd.DataFrame([row])
+            # Create patient data dictionary
+            patient_dict = row.to_dict()
+            patient_df = pd.DataFrame([patient_dict])
             
-            for feature in feature_names if feature_names else []:
-                if feature not in patient_df.columns:
-                    patient_df[feature] = 0
+            # Ensure all required features are present
+            if feature_names:
+                for feature in feature_names:
+                    if feature not in patient_df.columns:
+                        patient_df[feature] = 0
             
+            # Get prediction
             probability = predict_patient_risk(patient_df, model, feature_names)
             
+            # Determine risk level
             if probability >= 0.15:
                 risk_level = "HIGH"
                 action = "High Intervention"
@@ -149,6 +161,7 @@ def process_batch_data(batch_data, model, feature_names):
                 risk_level = "LOW" 
                 action = "Standard Care"
             
+            # Add to results
             results.append({
                 'Patient_ID': row.get('PatientId', f'PT_{i:04d}'),
                 'Age': row.get('Age', 'N/A'),
@@ -157,8 +170,19 @@ def process_batch_data(batch_data, model, feature_names):
                 'Recommended_Action': action
             })
             
-        except:
+        except Exception as e:
+            # Continue processing other rows even if one fails
+            st.warning(f"Error processing patient {i+1}: {str(e)}")
             continue
+        
+        # Update progress
+        progress = (i + 1) / total_patients
+        progress_bar.progress(progress)
+        status_text.text(f"Processing {i+1}/{total_patients} patients...")
+    
+    # Clear progress indicators
+    progress_bar.empty()
+    status_text.empty()
     
     return pd.DataFrame(results)
 
@@ -365,12 +389,12 @@ def show_patient_risk_assessment(model, feature_names):
                 st.subheader("Sample of Uploaded Data")
                 st.dataframe(batch_data.head(5), use_container_width=True)
                 
-                if st.button("Run Batch Risk Analysis"):
+                if st.button("Run Batch Risk Analysis", type="primary"):
                     if len(batch_data) > 1000:
                         st.warning(f"Large dataset detected. Analyzing first 1,000 records for performance.")
                         batch_data = batch_data.head(1000)
                     
-                    with st.spinner("Analyzing patient data..."):
+                    with st.spinner("Analyzing patient data. This may take a few moments..."):
                         results_df = process_batch_data(batch_data, model, feature_names)
                     
                     if len(results_df) > 0:
@@ -396,7 +420,8 @@ def show_patient_risk_assessment(model, feature_names):
                         
                         st.subheader("Risk Distribution Overview")
                         risk_counts = results_df['Risk_Level'].value_counts()
-                        fig = px.pie(values=risk_counts.values, names=risk_counts.index)
+                        fig = px.pie(values=risk_counts.values, names=risk_counts.index, 
+                                   title="Distribution of Risk Levels")
                         st.plotly_chart(fig, use_container_width=True)
                         
                         st.subheader("Detailed Risk Analysis Results")
@@ -404,17 +429,18 @@ def show_patient_risk_assessment(model, feature_names):
                         display_df['No-Show Probability'] = display_df['No_Show_Probability'].apply(lambda x: f"{x:.1%}")
                         st.dataframe(display_df, use_container_width=True, hide_index=True)
                         
+                        # Download functionality
                         csv = results_df.to_csv(index=False)
                         st.download_button(
                             "Download Full Analysis Results",
                             csv,
                             "batch_risk_analysis_results.csv",
                             "text/csv",
-                            use_container_width=True
+                            key='download-csv'
                         )
                     
                     else:
-                        st.error("No results were generated. Please check your data format.")
+                        st.error("No results were generated. Please check your data format and ensure it contains the required features.")
                         
             except Exception as e:
                 st.error(f"Error processing file: {str(e)}")
